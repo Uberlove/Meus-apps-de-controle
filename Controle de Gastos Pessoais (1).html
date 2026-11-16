@@ -1,0 +1,954 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Controle de Gastos Pessoais</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-900 min-h-screen">
+  <!-- Header -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30">
+    <div class="max-w-6xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-2.5">
+        <div class="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-lg shadow-sm">R$</div>
+        <div>
+          <h1 class="text-base sm:text-lg font-bold leading-tight text-slate-900">Controle de Gastos</h1>
+          <p class="text-xs text-slate-500">Finanças pessoais e metas mensais</p>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-2">
+        <input id="monthFilter" type="month" aria-label="Filtrar por mês"
+          class="px-3 py-2 text-sm bg-slate-100 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+        <button id="btnExportCsv" type="button"
+          class="px-3 py-2 text-xs sm:text-sm font-medium bg-white border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition">
+          Exportar CSV
+        </button>
+        <button id="btnOpenBackup" type="button"
+          class="px-3 py-2 text-xs sm:text-sm font-medium bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition">
+          Backup
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4 py-6 space-y-6">
+    <!-- KPI Cards -->
+    <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm">
+        <p class="text-xs font-medium text-slate-500 uppercase tracking-wide">Saldo do Mês</p>
+        <p id="kpiBalance" class="text-2xl font-bold mt-1 text-slate-900">R$ 0,00</p>
+        <p id="kpiBalanceSub" class="text-xs text-slate-500 mt-1">Receitas menos despesas</p>
+      </div>
+      <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm">
+        <p class="text-xs font-medium text-slate-500 uppercase tracking-wide">Receitas</p>
+        <p id="kpiIncome" class="text-2xl font-bold mt-1 text-emerald-600">R$ 0,00</p>
+        <p id="kpiIncomeCount" class="text-xs text-slate-500 mt-1">0 lançamentos</p>
+      </div>
+      <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm">
+        <p class="text-xs font-medium text-slate-500 uppercase tracking-wide">Despesas</p>
+        <p id="kpiExpense" class="text-2xl font-bold mt-1 text-rose-600">R$ 0,00</p>
+        <p id="kpiExpenseCount" class="text-xs text-slate-500 mt-1">0 lançamentos</p>
+      </div>
+      <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm">
+        <div class="flex items-center justify-between">
+          <p class="text-xs font-medium text-slate-500 uppercase tracking-wide">Meta de Gastos</p>
+          <button id="btnEditBudget" type="button" class="text-xs font-medium text-emerald-700 hover:underline">Editar</button>
+        </div>
+        <p id="kpiBudgetText" class="text-lg font-bold mt-1 text-slate-900">0% usada</p>
+        <div class="w-full bg-slate-100 rounded-full h-2.5 mt-2 overflow-hidden">
+          <div id="budgetBar" class="bg-emerald-500 h-2.5 rounded-full transition-all duration-300" style="width: 0%"></div>
+        </div>
+        <p id="kpiBudgetLimit" class="text-xs text-slate-500 mt-1">Limite: R$ 0,00</p>
+      </div>
+    </section>
+
+    <!-- Ganhos por Fonte + Custos Fixos -->
+    <section class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <!-- Ganhos por Fonte -->
+      <div class="lg:col-span-5 bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between mb-3">
+            <div>
+              <h2 class="text-base font-bold text-slate-900">Ganhos por Fonte</h2>
+              <p class="text-xs text-slate-500">Toque em uma fonte para lançar rápido</p>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-3" id="incomeSourcesGrid">
+            <button type="button" data-quick-income="Uber" class="text-left p-3 rounded-xl border border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/40 transition">
+              <p class="text-xs font-medium text-slate-500">Uber</p>
+              <p id="srcUber" class="text-lg font-bold text-slate-900 mt-0.5">R$ 0,00</p>
+            </button>
+            <button type="button" data-quick-income="99" class="text-left p-3 rounded-xl border border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/40 transition">
+              <p class="text-xs font-medium text-slate-500">99</p>
+              <p id="src99" class="text-lg font-bold text-slate-900 mt-0.5">R$ 0,00</p>
+            </button>
+            <button type="button" data-quick-income="Gorjeta" class="text-left p-3 rounded-xl border border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/40 transition">
+              <p class="text-xs font-medium text-slate-500">Gorjeta</p>
+              <p id="srcGorjeta" class="text-lg font-bold text-slate-900 mt-0.5">R$ 0,00</p>
+            </button>
+            <button type="button" data-quick-income="Venda de Ingressos" class="text-left p-3 rounded-xl border border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/40 transition">
+              <p class="text-xs font-medium text-slate-500">Venda de Ingressos</p>
+              <p id="srcIngressos" class="text-lg font-bold text-slate-900 mt-0.5">R$ 0,00</p>
+            </button>
+            <button type="button" data-quick-income="Comissões" class="col-span-2 text-left p-3 rounded-xl border border-emerald-200 bg-emerald-50/30 hover:border-emerald-400 hover:bg-emerald-50/60 transition">
+              <div class="flex items-center justify-between gap-2">
+                <div>
+                  <p class="text-xs font-medium text-slate-600">Comissões (Semana Atual)</p>
+                  <p id="srcComissoesWeek" class="text-lg font-bold text-emerald-700 mt-0.5">R$ 0,00</p>
+                </div>
+                <div class="text-right">
+                  <p class="text-[11px] text-slate-500">Total no mês</p>
+                  <p id="srcComissoesMonth" class="text-sm font-semibold text-slate-800">R$ 0,00</p>
+                </div>
+              </div>
+              <div id="comissoesWeeksRow" class="grid grid-cols-4 gap-1.5 mt-2.5 pt-2 border-t border-emerald-100 text-[11px]"></div>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Custos Fixos do Mês -->
+      <div class="lg:col-span-7 bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+          <div>
+            <h2 class="text-base font-bold text-slate-900">Custos Fixos do Mês</h2>
+            <p class="text-xs text-slate-500">Entram automaticamente no total de despesas do mês</p>
+          </div>
+          <span id="fixedTotalLabel" class="text-sm font-bold text-rose-600">Total: R$ 0,00</span>
+        </div>
+
+        <form id="fixedForm" class="flex flex-col sm:flex-row gap-2 mb-3">
+          <input id="fixedDesc" type="text" required placeholder="Ex: Aluguel, Internet, Seguro..."
+            class="flex-1 px-3 py-2 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+          <input id="fixedAmount" type="number" step="0.01" min="0.01" required placeholder="Valor (R$)"
+            class="w-full sm:w-32 px-3 py-2 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+          <button type="submit"
+            class="px-4 py-2 text-sm font-semibold bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition shrink-0">
+            + Custo Fixo
+          </button>
+        </form>
+
+        <div id="fixedList" class="divide-y divide-slate-100 max-h-48 overflow-y-auto"></div>
+        <div id="fixedEmpty" class="hidden text-center py-4 text-xs text-slate-400">
+          Nenhum custo fixo cadastrado.
+        </div>
+      </div>
+    </section>
+
+    <!-- Form + Chart -->
+    <section class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <!-- New Transaction Form -->
+      <div class="lg:col-span-5 bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+        <div class="flex items-center justify-between mb-4">
+          <h2 id="formTitle" class="text-base font-bold text-slate-900">Novo Lançamento</h2>
+          <button id="btnCancelEdit" type="button" class="hidden text-xs text-slate-500 hover:text-slate-800 underline">
+            Cancelar edição
+          </button>
+        </div>
+
+        <form id="txForm" class="space-y-3.5">
+          <input type="hidden" id="editId" value="" />
+          <div class="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-xl">
+            <button type="button" id="typeExpenseBtn"
+              class="py-2 text-sm font-semibold rounded-lg bg-rose-600 text-white shadow-sm transition">
+              Despesa
+            </button>
+            <button type="button" id="typeIncomeBtn"
+              class="py-2 text-sm font-semibold rounded-lg text-slate-600 hover:text-slate-900 transition">
+              Receita
+            </button>
+          </div>
+          <input type="hidden" id="txType" value="expense" />
+
+          <div>
+            <label for="txDesc" class="block text-xs font-medium text-slate-600 mb-1">Descrição</label>
+            <input id="txDesc" type="text" required placeholder="Ex: Mercado, Combustível, Corrida..."
+              class="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label for="txAmount" class="block text-xs font-medium text-slate-600 mb-1">Valor (R$)</label>
+              <input id="txAmount" type="number" step="0.01" min="0.01" required placeholder="0,00"
+                class="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+            </div>
+            <div>
+              <label for="txDate" class="block text-xs font-medium text-slate-600 mb-1">Data</label>
+              <input id="txDate" type="date" required
+                class="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label for="txCategory" class="block text-xs font-medium text-slate-600 mb-1">Categoria</label>
+              <select id="txCategory"
+                class="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+              </select>
+            </div>
+            <div>
+              <label for="txPayment" class="block text-xs font-medium text-slate-600 mb-1">Pagamento</label>
+              <select id="txPayment"
+                class="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                <option value="Pix">Pix</option>
+                <option value="Cartão de Crédito">Cartão de Crédito</option>
+                <option value="Cartão de Débito">Cartão de Débito</option>
+                <option value="Dinheiro">Dinheiro</option>
+                <option value="Transferência">Transferência</option>
+              </select>
+            </div>
+          </div>
+
+          <button id="btnSubmitTx" type="submit"
+            class="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm rounded-xl shadow-sm transition">
+            Adicionar Lançamento
+          </button>
+        </form>
+      </div>
+
+      <!-- Category Chart -->
+      <div class="lg:col-span-7 bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col">
+        <div class="flex items-center justify-between mb-3">
+          <div>
+            <h2 class="text-base font-bold text-slate-900">Despesas por Categoria</h2>
+            <p class="text-xs text-slate-500">Distribuição do mês selecionado</p>
+          </div>
+          <span id="chartTotalLabel" class="text-sm font-semibold text-slate-700">R$ 0,00</span>
+        </div>
+        <div class="relative h-64 w-full flex-1">
+          <canvas id="categoryChart"></canvas>
+        </div>
+        <div id="chartEmpty" class="hidden text-center py-10 text-sm text-slate-400">
+          Nenhuma despesa registrada neste mês para exibir no gráfico.
+        </div>
+      </div>
+    </section>
+
+    <!-- Transactions List -->
+    <section class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+      <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 mb-4">
+        <div>
+          <h2 id="txListTitle" class="text-base font-bold text-slate-900">Lançamentos do Mês</h2>
+          <p id="daySummaryText" class="hidden text-xs text-slate-500 mt-0.5"></p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <div class="flex items-center gap-1">
+            <input id="dayFilter" type="date" aria-label="Buscar por dia"
+              class="px-3 py-2 text-sm border border-slate-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+            <button id="btnClearDay" type="button" class="hidden px-2.5 py-2 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl">
+              Limpar dia
+            </button>
+          </div>
+          <input id="searchInput" type="search" placeholder="Buscar descrição..."
+            class="px-3 py-2 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full sm:w-48" />
+          <select id="typeFilter" aria-label="Filtrar por tipo"
+            class="px-3 py-2 text-sm border border-slate-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+            <option value="all">Todos os tipos</option>
+            <option value="expense">Somente despesas</option>
+            <option value="income">Somente receitas</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="txList" class="divide-y divide-slate-100"></div>
+      <div id="txEmpty" class="hidden text-center py-10 text-sm text-slate-400">
+        Nenhum lançamento encontrado para os filtros atuais.
+      </div>
+    </section>
+  </main>
+
+  <!-- Modal: Edit Budget -->
+  <div id="budgetModal" class="hidden fixed inset-0 z-50 bg-slate-900/50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-sm w-full p-5 shadow-xl space-y-4">
+      <h3 class="text-base font-bold text-slate-900">Definir Meta de Gastos Mensal</h3>
+      <div>
+        <label for="budgetInput" class="block text-xs font-medium text-slate-600 mb-1">Limite mensal (R$)</label>
+        <input id="budgetInput" type="number" step="50" min="1"
+          class="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+      </div>
+      <div class="flex justify-end gap-2">
+        <button id="btnCloseBudget" type="button" class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-xl">Cancelar</button>
+        <button id="btnSaveBudget" type="button" class="px-4 py-2 text-sm font-semibold bg-emerald-600 text-white rounded-xl hover:bg-emerald-700">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Backup & Reset -->
+  <div id="backupModal" class="hidden fixed inset-0 z-50 bg-slate-900/50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-md w-full p-5 shadow-xl space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="text-base font-bold text-slate-900">Backup e Dados</h3>
+        <button id="btnCloseBackup" type="button" class="text-slate-400 hover:text-slate-700 text-lg font-bold">&times;</button>
+      </div>
+      <p class="text-xs text-slate-600">Seus dados ficam salvos automaticamente no navegador deste aparelho. Use as opções abaixo para exportar ou restaurar uma cópia.</p>
+      <div class="space-y-2.5">
+        <button id="btnDownloadJson" type="button"
+          class="w-full py-2.5 px-4 text-sm font-semibold bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition">
+          Baixar Backup (.json)
+        </button>
+        <label class="block w-full py-2.5 px-4 text-sm font-semibold text-center bg-slate-100 text-slate-800 rounded-xl hover:bg-slate-200 cursor-pointer transition">
+          Restaurar Backup (.json)
+          <input id="importJsonInput" type="file" accept=".json,application/json" class="hidden" />
+        </label>
+        <button id="btnClearAll" type="button"
+          class="w-full py-2.5 px-4 text-sm font-semibold bg-rose-50 text-rose-700 border border-rose-200 rounded-xl hover:bg-rose-100 transition">
+          Limpar Todos os Dados
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Confirm Delete / Clear -->
+  <div id="confirmModal" class="hidden fixed inset-0 z-50 bg-slate-900/50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-sm w-full p-5 shadow-xl space-y-4">
+      <h3 id="confirmTitle" class="text-base font-bold text-slate-900">Confirmar ação</h3>
+      <p id="confirmMessage" class="text-sm text-slate-600"></p>
+      <div class="flex justify-end gap-2">
+        <button id="btnConfirmCancel" type="button" class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-xl">Cancelar</button>
+        <button id="btnConfirmOk" type="button" class="px-4 py-2 text-sm font-semibold bg-rose-600 text-white rounded-xl hover:bg-rose-700">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="hidden fixed bottom-4 right-4 z-50 bg-slate-900 text-white text-sm font-medium px-4 py-2.5 rounded-xl shadow-lg"></div>
+
+  <script>
+    (function () {
+      const STORAGE_KEY = 'gastos_app_v1';
+      const EXPENSE_CATS = ['Alimentação', 'Transporte', 'Moradia', 'Saúde', 'Lazer', 'Educação', 'Assinaturas', 'Outros'];
+      const INCOME_CATS = ['Uber', '99', 'Gorjeta', 'Venda de Ingressos', 'Comissões', 'Outros'];
+      const CHART_COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#64748b'];
+
+      const today = new Date();
+      const currentMonthStr = today.toISOString().slice(0, 7);
+      const todayStr = today.toISOString().slice(0, 10);
+
+      let state = {
+        budget: 3000,
+        transactions: [],
+        fixedCosts: []
+      };
+
+      let chartInstance = null;
+      let pendingConfirmAction = null;
+
+      function sampleData() {
+        return {
+          transactions: [
+            { id: 'ex1', type: 'income', desc: 'Corridas Uber da semana', amount: 1150.00, category: 'Uber', payment: 'Pix', date: currentMonthStr + '-05' },
+            { id: 'ex2', type: 'income', desc: 'Corridas 99 da semana', amount: 680.00, category: '99', payment: 'Pix', date: currentMonthStr + '-07' },
+            { id: 'ex3', type: 'income', desc: 'Gorjetas recebidas', amount: 95.00, category: 'Gorjeta', payment: 'Dinheiro', date: currentMonthStr + '-09' },
+            { id: 'ex4', type: 'income', desc: 'Revenda de ingressos', amount: 540.00, category: 'Venda de Ingressos', payment: 'Pix', date: currentMonthStr + '-10' },
+            { id: 'ex4b', type: 'income', desc: 'Comissões passeios / parceiros', amount: 320.00, category: 'Comissões', payment: 'Pix', date: todayStr },
+            { id: 'ex5', type: 'expense', desc: 'Abastecimento gasolina', amount: 240.00, category: 'Transporte', payment: 'Pix', date: currentMonthStr + '-08' },
+            { id: 'ex6', type: 'expense', desc: 'Supermercado', amount: 385.90, category: 'Alimentação', payment: 'Cartão de Débito', date: currentMonthStr + '-06' }
+          ],
+          fixedCosts: [
+            { id: 'fx1', desc: 'Aluguel / Moradia', amount: 1200.00, paidMonths: {} },
+            { id: 'fx2', desc: 'Internet e Celular', amount: 149.90, paidMonths: {} }
+          ]
+        };
+      }
+
+      function loadState() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (parsed && Array.isArray(parsed.transactions)) {
+              state.budget = Number(parsed.budget) > 0 ? Number(parsed.budget) : 3000;
+              state.transactions = parsed.transactions;
+              state.fixedCosts = Array.isArray(parsed.fixedCosts) ? parsed.fixedCosts : [];
+              return;
+            }
+          }
+        } catch (e) {}
+        const sData = sampleData();
+        state.transactions = sData.transactions;
+        state.fixedCosts = sData.fixedCosts;
+        saveState();
+      }
+
+      function saveState() {
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        } catch (e) {}
+      }
+
+      function formatBRL(val) {
+        return Number(val || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+      }
+
+      function showToast(msg) {
+        const el = document.getElementById('toast');
+        el.textContent = msg;
+        el.classList.remove('hidden');
+        clearTimeout(el._timer);
+        el._timer = setTimeout(() => el.classList.add('hidden'), 2600);
+      }
+
+      function openConfirm(title, message, onConfirm) {
+        document.getElementById('confirmTitle').textContent = title;
+        document.getElementById('confirmMessage').textContent = message;
+        pendingConfirmAction = onConfirm;
+        document.getElementById('confirmModal').classList.remove('hidden');
+      }
+
+      function closeConfirm() {
+        document.getElementById('confirmModal').classList.add('hidden');
+        pendingConfirmAction = null;
+      }
+
+      function populateCategories(type, selected) {
+        const select = document.getElementById('txCategory');
+        const list = type === 'income' ? INCOME_CATS : EXPENSE_CATS;
+        select.innerHTML = '';
+        list.forEach(cat => {
+          const opt = document.createElement('option');
+          opt.value = cat;
+          opt.textContent = cat;
+          if (selected === cat) opt.selected = true;
+          select.appendChild(opt);
+        });
+      }
+
+      function setTxType(type) {
+        document.getElementById('txType').value = type;
+        const expBtn = document.getElementById('typeExpenseBtn');
+        const incBtn = document.getElementById('typeIncomeBtn');
+        if (type === 'expense') {
+          expBtn.className = 'py-2 text-sm font-semibold rounded-lg bg-rose-600 text-white shadow-sm transition';
+          incBtn.className = 'py-2 text-sm font-semibold rounded-lg text-slate-600 hover:text-slate-900 transition';
+        } else {
+          incBtn.className = 'py-2 text-sm font-semibold rounded-lg bg-emerald-600 text-white shadow-sm transition';
+          expBtn.className = 'py-2 text-sm font-semibold rounded-lg text-slate-600 hover:text-slate-900 transition';
+        }
+        populateCategories(type);
+      }
+
+      function resetForm() {
+        document.getElementById('editId').value = '';
+        document.getElementById('txDesc').value = '';
+        document.getElementById('txAmount').value = '';
+        document.getElementById('txDate').value = todayStr;
+        document.getElementById('txPayment').value = 'Pix';
+        document.getElementById('formTitle').textContent = 'Novo Lançamento';
+        document.getElementById('btnSubmitTx').textContent = 'Adicionar Lançamento';
+        document.getElementById('btnCancelEdit').classList.add('hidden');
+        setTxType('expense');
+      }
+
+      function getMonthTransactions() {
+        const m = document.getElementById('monthFilter').value;
+        return state.transactions.filter(t => !m || t.date.startsWith(m));
+      }
+
+      function getFixedTotal() {
+        return state.fixedCosts.reduce((acc, f) => acc + (Number(f.amount) || 0), 0);
+      }
+
+      function renderKPIs(monthTxs) {
+        let income = 0, varExpense = 0, incCount = 0, expCount = 0;
+        let uber = 0, n99 = 0, gorjeta = 0, ingressos = 0, comissoesMonth = 0;
+        const weekTotals = [0, 0, 0, 0];
+
+        monthTxs.forEach(t => {
+          const val = Number(t.amount) || 0;
+          if (t.type === 'income') {
+            income += val;
+            incCount++;
+            if (t.category === 'Uber') uber += val;
+            else if (t.category === '99') n99 += val;
+            else if (t.category === 'Gorjeta') gorjeta += val;
+            else if (t.category === 'Venda de Ingressos') ingressos += val;
+            else if (t.category === 'Comissões') {
+              comissoesMonth += val;
+              const day = parseInt((t.date || '').slice(8, 10), 10) || 1;
+              const wIdx = Math.min(3, Math.floor((day - 1) / 7));
+              weekTotals[wIdx] += val;
+            }
+          } else {
+            varExpense += val;
+            expCount++;
+          }
+        });
+
+        const fixedTotal = getFixedTotal();
+        const totalExpense = varExpense + fixedTotal;
+        const balance = income - totalExpense;
+
+        const balEl = document.getElementById('kpiBalance');
+        balEl.textContent = formatBRL(balance);
+        balEl.className = 'text-2xl font-bold mt-1 ' + (balance >= 0 ? 'text-slate-900' : 'text-rose-600');
+
+        document.getElementById('kpiIncome').textContent = formatBRL(income);
+        document.getElementById('kpiIncomeCount').textContent = incCount + (incCount === 1 ? ' lançamento' : ' lançamentos');
+        document.getElementById('kpiExpense').textContent = formatBRL(totalExpense);
+        document.getElementById('kpiExpenseCount').textContent = expCount + ' variáveis + ' + state.fixedCosts.length + ' fixos';
+
+        document.getElementById('srcUber').textContent = formatBRL(uber);
+        document.getElementById('src99').textContent = formatBRL(n99);
+        document.getElementById('srcGorjeta').textContent = formatBRL(gorjeta);
+        document.getElementById('srcIngressos').textContent = formatBRL(ingressos);
+        document.getElementById('srcComissoesMonth').textContent = formatBRL(comissoesMonth);
+
+        const now = new Date();
+        const dayOfWeek = now.getDay() === 0 ? 7 : now.getDay();
+        const monday = new Date(now);
+        monday.setDate(now.getDate() - (dayOfWeek - 1));
+        const mondayStr = monday.toISOString().slice(0, 10);
+        const sunday = new Date(monday);
+        sunday.setDate(monday.getDate() + 6);
+        const sundayStr = sunday.toISOString().slice(0, 10);
+
+        const comissoesWeek = state.transactions
+          .filter(t => t.type === 'income' && t.category === 'Comissões' && t.date >= mondayStr && t.date <= sundayStr)
+          .reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
+        document.getElementById('srcComissoesWeek').textContent = formatBRL(comissoesWeek);
+
+        const weeksEl = document.getElementById('comissoesWeeksRow');
+        weeksEl.innerHTML = '';
+        ['Sem 1', 'Sem 2', 'Sem 3', 'Sem 4+'].forEach((label, idx) => {
+          const box = document.createElement('div');
+          box.className = 'bg-white/80 rounded-lg px-2 py-1 border border-emerald-100';
+          box.innerHTML = '<span class="block text-slate-500">' + label + '</span><span class="font-semibold text-slate-800">' + formatBRL(weekTotals[idx]) + '</span>';
+          weeksEl.appendChild(box);
+        });
+
+        const budget = Number(state.budget) || 1;
+        const pct = Math.round((totalExpense / budget) * 100);
+        document.getElementById('kpiBudgetText').textContent = pct + '% usada';
+        document.getElementById('kpiBudgetLimit').textContent = 'Limite: ' + formatBRL(budget);
+
+        const bar = document.getElementById('budgetBar');
+        bar.style.width = Math.min(pct, 100) + '%';
+        if (pct >= 100) bar.className = 'bg-rose-600 h-2.5 rounded-full transition-all duration-300';
+        else if (pct >= 80) bar.className = 'bg-amber-500 h-2.5 rounded-full transition-all duration-300';
+        else bar.className = 'bg-emerald-500 h-2.5 rounded-full transition-all duration-300';
+      }
+
+      function renderFixedCosts() {
+        const m = document.getElementById('monthFilter').value || currentMonthStr;
+        const listEl = document.getElementById('fixedList');
+        const emptyEl = document.getElementById('fixedEmpty');
+        document.getElementById('fixedTotalLabel').textContent = 'Total: ' + formatBRL(getFixedTotal());
+
+        listEl.innerHTML = '';
+        if (state.fixedCosts.length === 0) {
+          emptyEl.classList.remove('hidden');
+          return;
+        }
+        emptyEl.classList.add('hidden');
+
+        state.fixedCosts.forEach(f => {
+          const isPaid = Boolean(f.paidMonths && f.paidMonths[m]);
+          const row = document.createElement('div');
+          row.className = 'py-2.5 flex items-center justify-between gap-2';
+          row.innerHTML = `
+            <div class="flex items-center gap-2.5 min-w-0">
+              <button type="button" data-fixed-action="toggle" data-id="${f.id}"
+                class="px-2 py-0.5 text-[11px] font-semibold rounded-full shrink-0 ${isPaid ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}">
+                ${isPaid ? 'Pago' : 'Pendente'}
+              </button>
+              <span class="text-sm font-medium text-slate-800 truncate">${escapeHtml(f.desc)}</span>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+              <span class="text-sm font-bold text-slate-900">${formatBRL(f.amount)}</span>
+              <button type="button" data-fixed-action="delete" data-id="${f.id}"
+                class="px-2 py-1 text-xs text-rose-600 hover:bg-rose-50 rounded-lg">Excluir</button>
+            </div>
+          `;
+          listEl.appendChild(row);
+        });
+      }
+
+      function renderChart(monthTxs) {
+        const expenses = monthTxs.filter(t => t.type === 'expense');
+        const canvas = document.getElementById('categoryChart');
+        const emptyEl = document.getElementById('chartEmpty');
+        const totalEl = document.getElementById('chartTotalLabel');
+
+        const totals = {};
+        let sum = 0;
+        expenses.forEach(t => {
+          const val = Number(t.amount) || 0;
+          totals[t.category] = (totals[t.category] || 0) + val;
+          sum += val;
+        });
+        totalEl.textContent = formatBRL(sum);
+
+        const labels = Object.keys(totals);
+        if (labels.length === 0) {
+          canvas.parentElement.classList.add('hidden');
+          emptyEl.classList.remove('hidden');
+          if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+          return;
+        }
+
+        canvas.parentElement.classList.remove('hidden');
+        emptyEl.classList.add('hidden');
+        const data = labels.map(l => totals[l]);
+
+        if (chartInstance) chartInstance.destroy();
+        chartInstance = new Chart(canvas, {
+          type: 'doughnut',
+          data: {
+            labels: labels,
+            datasets: [{
+              data: data,
+              backgroundColor: labels.map((_, i) => CHART_COLORS[i % CHART_COLORS.length]),
+              borderWidth: 2,
+              borderColor: '#ffffff'
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { position: 'right', labels: { boxWidth: 12, font: { family: 'Inter', size: 12 } } },
+              tooltip: {
+                callbacks: {
+                  label: ctx => ctx.label + ': ' + formatBRL(ctx.raw)
+                }
+              }
+            }
+          }
+        });
+      }
+
+      function renderList(monthTxs) {
+        const search = document.getElementById('searchInput').value.trim().toLowerCase();
+        const typeFilter = document.getElementById('typeFilter').value;
+        const dayVal = document.getElementById('dayFilter').value;
+        const clearBtn = document.getElementById('btnClearDay');
+        const titleEl = document.getElementById('txListTitle');
+        const daySummaryEl = document.getElementById('daySummaryText');
+
+        const baseList = dayVal ? state.transactions.filter(t => t.date === dayVal) : monthTxs;
+
+        if (dayVal) {
+          clearBtn.classList.remove('hidden');
+          titleEl.textContent = 'Lançamentos do Dia ' + dayVal.split('-').reverse().join('/');
+          let dInc = 0, dExp = 0;
+          baseList.forEach(t => {
+            if (t.type === 'income') dInc += Number(t.amount) || 0;
+            else dExp += Number(t.amount) || 0;
+          });
+          daySummaryEl.textContent = 'Receitas no dia: ' + formatBRL(dInc) + ' | Despesas no dia: ' + formatBRL(dExp);
+          daySummaryEl.classList.remove('hidden');
+        } else {
+          clearBtn.classList.add('hidden');
+          titleEl.textContent = 'Lançamentos do Mês';
+          daySummaryEl.classList.add('hidden');
+        }
+
+        const filtered = baseList
+          .filter(t => {
+            if (typeFilter !== 'all' && t.type !== typeFilter) return false;
+            if (search && !t.desc.toLowerCase().includes(search) && !t.category.toLowerCase().includes(search)) return false;
+            return true;
+          })
+          .sort((a, b) => b.date.localeCompare(a.date));
+
+        const listEl = document.getElementById('txList');
+        const emptyEl = document.getElementById('txEmpty');
+        listEl.innerHTML = '';
+
+        if (filtered.length === 0) {
+          emptyEl.classList.remove('hidden');
+          return;
+        }
+        emptyEl.classList.add('hidden');
+
+        filtered.forEach(t => {
+          const row = document.createElement('div');
+          row.className = 'py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2';
+
+          const isInc = t.type === 'income';
+          const dateFmt = t.date.split('-').reverse().join('/');
+
+          row.innerHTML = `
+            <div class="flex items-start sm:items-center gap-3">
+              <div class="w-2.5 h-2.5 rounded-full mt-1.5 sm:mt-0 shrink-0 ${isInc ? 'bg-emerald-500' : 'bg-rose-500'}"></div>
+              <div>
+                <p class="text-sm font-semibold text-slate-900"></p>
+                <div class="flex flex-wrap items-center gap-1.5 mt-0.5 text-xs text-slate-500">
+                  <span class="px-2 py-0.5 bg-slate-100 rounded-md font-medium text-slate-700">${escapeHtml(t.category)}</span>
+                  <span>&bull;</span>
+                  <span>${escapeHtml(t.payment)}</span>
+                  <span>&bull;</span>
+                  <span>${dateFmt}</span>
+                </div>
+              </div>
+            </div>
+            <div class="flex items-center justify-between sm:justify-end gap-3 pl-5 sm:pl-0">
+              <span class="text-sm font-bold ${isInc ? 'text-emerald-600' : 'text-rose-600'}">
+                ${isInc ? '+' : '-'} ${formatBRL(t.amount)}
+              </span>
+              <div class="flex items-center gap-1">
+                <button type="button" data-action="edit" data-id="${t.id}"
+                  class="px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg">Editar</button>
+                <button type="button" data-action="delete" data-id="${t.id}"
+                  class="px-2.5 py-1 text-xs font-medium text-rose-600 hover:bg-rose-50 rounded-lg">Excluir</button>
+              </div>
+            </div>
+          `;
+          row.querySelector('p').textContent = t.desc;
+          listEl.appendChild(row);
+        });
+      }
+
+      function escapeHtml(str) {
+        return String(str).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+      }
+
+      function renderAll() {
+        const monthTxs = getMonthTransactions();
+        renderKPIs(monthTxs);
+        renderFixedCosts();
+        renderChart(monthTxs);
+        renderList(monthTxs);
+      }
+
+      // Events
+      document.getElementById('typeExpenseBtn').addEventListener('click', () => setTxType('expense'));
+      document.getElementById('typeIncomeBtn').addEventListener('click', () => setTxType('income'));
+      document.getElementById('btnCancelEdit').addEventListener('click', resetForm);
+
+      document.getElementById('txForm').addEventListener('submit', e => {
+        e.preventDefault();
+        const editId = document.getElementById('editId').value;
+        const type = document.getElementById('txType').value;
+        const desc = document.getElementById('txDesc').value.trim();
+        const amount = parseFloat(document.getElementById('txAmount').value);
+        const date = document.getElementById('txDate').value;
+        const category = document.getElementById('txCategory').value;
+        const payment = document.getElementById('txPayment').value;
+
+        if (!desc || isNaN(amount) || amount <= 0 || !date) return;
+
+        if (editId) {
+          const idx = state.transactions.findIndex(t => t.id === editId);
+          if (idx !== -1) {
+            state.transactions[idx] = { id: editId, type, desc, amount, category, payment, date };
+            showToast('Lançamento atualizado!');
+          }
+        } else {
+          state.transactions.push({
+            id: 'tx_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+            type, desc, amount, category, payment, date
+          });
+          showToast('Lançamento adicionado!');
+        }
+        saveState();
+        resetForm();
+        renderAll();
+      });
+
+      document.getElementById('txList').addEventListener('click', e => {
+        const btn = e.target.closest('button[data-action]');
+        if (!btn) return;
+        const id = btn.dataset.id;
+        const action = btn.dataset.action;
+
+        if (action === 'edit') {
+          const tx = state.transactions.find(t => t.id === id);
+          if (!tx) return;
+          setTxType(tx.type);
+          document.getElementById('editId').value = tx.id;
+          document.getElementById('txDesc').value = tx.desc;
+          document.getElementById('txAmount').value = tx.amount;
+          document.getElementById('txDate').value = tx.date;
+          populateCategories(tx.type, tx.category);
+          document.getElementById('txPayment').value = tx.payment;
+          document.getElementById('formTitle').textContent = 'Editar Lançamento';
+          document.getElementById('btnSubmitTx').textContent = 'Salvar Alterações';
+          document.getElementById('btnCancelEdit').classList.remove('hidden');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        } else if (action === 'delete') {
+          openConfirm('Excluir lançamento', 'Tem certeza que deseja excluir este lançamento?', () => {
+            state.transactions = state.transactions.filter(t => t.id !== id);
+            saveState();
+            renderAll();
+            showToast('Lançamento excluído.');
+          });
+        }
+      });
+
+      document.getElementById('monthFilter').addEventListener('change', renderAll);
+      document.getElementById('searchInput').addEventListener('input', renderAll);
+      document.getElementById('typeFilter').addEventListener('change', renderAll);
+      document.getElementById('dayFilter').addEventListener('change', renderAll);
+      document.getElementById('btnClearDay').addEventListener('click', () => {
+        document.getElementById('dayFilter').value = '';
+        renderAll();
+      });
+
+      // Budget Modal
+      document.getElementById('btnEditBudget').addEventListener('click', () => {
+        document.getElementById('budgetInput').value = state.budget;
+        document.getElementById('budgetModal').classList.remove('hidden');
+      });
+      document.getElementById('btnCloseBudget').addEventListener('click', () => {
+        document.getElementById('budgetModal').classList.add('hidden');
+      });
+      document.getElementById('btnSaveBudget').addEventListener('click', () => {
+        const val = parseFloat(document.getElementById('budgetInput').value);
+        if (val > 0) {
+          state.budget = val;
+          saveState();
+          renderAll();
+          document.getElementById('budgetModal').classList.add('hidden');
+          showToast('Meta mensal atualizada!');
+        }
+      });
+
+      // Backup Modal
+      document.getElementById('btnOpenBackup').addEventListener('click', () => {
+        document.getElementById('backupModal').classList.remove('hidden');
+      });
+      document.getElementById('btnCloseBackup').addEventListener('click', () => {
+        document.getElementById('backupModal').classList.add('hidden');
+      });
+      document.getElementById('btnDownloadJson').addEventListener('click', () => {
+        const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'backup-gastos-' + todayStr + '.json';
+        a.click();
+        URL.revokeObjectURL(url);
+        showToast('Backup baixado!');
+      });
+      document.getElementById('importJsonInput').addEventListener('change', e => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = ev => {
+          try {
+            const parsed = JSON.parse(ev.target.result);
+            if (parsed && Array.isArray(parsed.transactions)) {
+              state.budget = Number(parsed.budget) || 3000;
+              state.transactions = parsed.transactions;
+              state.fixedCosts = Array.isArray(parsed.fixedCosts) ? parsed.fixedCosts : [];
+              saveState();
+              renderAll();
+              document.getElementById('backupModal').classList.add('hidden');
+              showToast('Backup restaurado com sucesso!');
+            }
+          } catch (err) {
+            showToast('Arquivo JSON inválido.');
+          }
+        };
+        reader.readAsText(file);
+        e.target.value = '';
+      });
+      document.getElementById('btnClearAll').addEventListener('click', () => {
+        document.getElementById('backupModal').classList.add('hidden');
+        openConfirm('Limpar todos os dados', 'Isso apagará todos os lançamentos e custos fixos salvos neste navegador.', () => {
+          state.transactions = [];
+          state.fixedCosts = [];
+          saveState();
+          renderAll();
+          showToast('Todos os dados foram apagados.');
+        });
+      });
+
+      // Export CSV
+      document.getElementById('btnExportCsv').addEventListener('click', () => {
+        const txs = getMonthTransactions();
+        const header = 'Data,Tipo,Descrição,Categoria,Pagamento,Valor\n';
+        const rows = txs.map(t =>
+          [t.date, t.type === 'income' ? 'Receita' : 'Despesa', '"' + t.desc.replace(/"/g, '""') + '"', t.category, t.payment, Number(t.amount).toFixed(2)].join(',')
+        ).join('\n');
+        const blob = new Blob(['\uFEFF' + header + rows], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'gastos-' + (document.getElementById('monthFilter').value || 'todos') + '.csv';
+        a.click();
+        URL.revokeObjectURL(url);
+        showToast('CSV exportado!');
+      });
+
+      // Confirm Modal buttons
+      document.getElementById('btnConfirmCancel').addEventListener('click', closeConfirm);
+      document.getElementById('btnConfirmOk').addEventListener('click', () => {
+        if (pendingConfirmAction) pendingConfirmAction();
+        closeConfirm();
+      });
+
+      // Quick Income Source Buttons
+      document.getElementById('incomeSourcesGrid').addEventListener('click', e => {
+        const btn = e.target.closest('button[data-quick-income]');
+        if (!btn) return;
+        const cat = btn.dataset.quickIncome;
+        setTxType('income');
+        populateCategories('income', cat);
+        document.getElementById('txDesc').value = 'Ganhos ' + cat;
+        document.getElementById('txAmount').focus();
+        document.getElementById('txForm').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+
+      // Fixed Costs Form & List
+      document.getElementById('fixedForm').addEventListener('submit', e => {
+        e.preventDefault();
+        const desc = document.getElementById('fixedDesc').value.trim();
+        const amount = parseFloat(document.getElementById('fixedAmount').value);
+        if (!desc || isNaN(amount) || amount <= 0) return;
+        state.fixedCosts.push({
+          id: 'fx_' + Date.now(),
+          desc: desc,
+          amount: amount,
+          paidMonths: {}
+        });
+        saveState();
+        document.getElementById('fixedDesc').value = '';
+        document.getElementById('fixedAmount').value = '';
+        renderAll();
+        showToast('Custo fixo adicionado!');
+      });
+
+      document.getElementById('fixedList').addEventListener('click', e => {
+        const btn = e.target.closest('button[data-fixed-action]');
+        if (!btn) return;
+        const id = btn.dataset.id;
+        const action = btn.dataset.fixedAction;
+        const m = document.getElementById('monthFilter').value || currentMonthStr;
+        if (action === 'toggle') {
+          const item = state.fixedCosts.find(f => f.id === id);
+          if (item) {
+            if (!item.paidMonths) item.paidMonths = {};
+            item.paidMonths[m] = !item.paidMonths[m];
+            saveState();
+            renderAll();
+          }
+        } else if (action === 'delete') {
+          openConfirm('Excluir custo fixo', 'Deseja remover este custo fixo mensal?', () => {
+            state.fixedCosts = state.fixedCosts.filter(f => f.id !== id);
+            saveState();
+            renderAll();
+            showToast('Custo fixo removido.');
+          });
+        }
+      });
+
+      // Init
+      document.getElementById('monthFilter').value = currentMonthStr;
+      loadState();
+      resetForm();
+      renderAll();
+    })();
+  </script>
+</body>
+</html>
