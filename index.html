@@ -76,33 +76,41 @@
       <!-- Ganhos por Fonte -->
       <div class="lg:col-span-5 bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col justify-between">
         <div>
-          <div class="flex items-center justify-between mb-3">
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
             <div>
-              <h2 class="text-base font-bold text-slate-900">Ganhos por Fonte</h2>
-              <p class="text-xs text-slate-500">Toque em uma fonte para lançar rápido</p>
+              <h2 class="text-base font-bold text-slate-900">Ganhos por Semana</h2>
+              <p class="text-xs text-slate-500">Toque na fonte para lançar rápido</p>
             </div>
+            <select id="weekFilter" aria-label="Selecionar semana (Seg a Dom)"
+              class="px-2.5 py-1.5 text-xs font-semibold border border-slate-300 rounded-lg bg-slate-50 text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+              <option value="all">Mês todo</option>
+            </select>
           </div>
-          <div class="grid grid-cols-2 gap-3" id="incomeSourcesGrid">
+          <div class="grid grid-cols-2 gap-2.5" id="incomeSourcesGrid">
             <button type="button" data-quick-income="Uber" class="text-left p-3 rounded-xl border border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/40 transition">
               <p class="text-xs font-medium text-slate-500">Uber</p>
               <p id="srcUber" class="text-lg font-bold text-slate-900 mt-0.5">R$ 0,00</p>
+              <p id="srcUberMonth" class="text-[11px] text-slate-500 mt-0.5">Mês: R$ 0,00</p>
             </button>
             <button type="button" data-quick-income="99" class="text-left p-3 rounded-xl border border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/40 transition">
               <p class="text-xs font-medium text-slate-500">99</p>
               <p id="src99" class="text-lg font-bold text-slate-900 mt-0.5">R$ 0,00</p>
+              <p id="src99Month" class="text-[11px] text-slate-500 mt-0.5">Mês: R$ 0,00</p>
             </button>
             <button type="button" data-quick-income="Gorjeta" class="text-left p-3 rounded-xl border border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/40 transition">
               <p class="text-xs font-medium text-slate-500">Gorjeta</p>
               <p id="srcGorjeta" class="text-lg font-bold text-slate-900 mt-0.5">R$ 0,00</p>
+              <p id="srcGorjetaMonth" class="text-[11px] text-slate-500 mt-0.5">Mês: R$ 0,00</p>
             </button>
             <button type="button" data-quick-income="Venda de Ingressos" class="text-left p-3 rounded-xl border border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/40 transition">
               <p class="text-xs font-medium text-slate-500">Venda de Ingressos</p>
               <p id="srcIngressos" class="text-lg font-bold text-slate-900 mt-0.5">R$ 0,00</p>
+              <p id="srcIngressosMonth" class="text-[11px] text-slate-500 mt-0.5">Mês: R$ 0,00</p>
             </button>
             <button type="button" data-quick-income="Comissões" class="col-span-2 text-left p-3 rounded-xl border border-emerald-200 bg-emerald-50/30 hover:border-emerald-400 hover:bg-emerald-50/60 transition">
               <div class="flex items-center justify-between gap-2">
                 <div>
-                  <p class="text-xs font-medium text-slate-600">Comissões (Semana Atual)</p>
+                  <p class="text-xs font-medium text-slate-600">Comissões</p>
                   <p id="srcComissoesWeek" class="text-lg font-bold text-emerald-700 mt-0.5">R$ 0,00</p>
                 </div>
                 <div class="text-right">
@@ -110,8 +118,14 @@
                   <p id="srcComissoesMonth" class="text-sm font-semibold text-slate-800">R$ 0,00</p>
                 </div>
               </div>
-              <div id="comissoesWeeksRow" class="grid grid-cols-4 gap-1.5 mt-2.5 pt-2 border-t border-emerald-100 text-[11px]"></div>
             </button>
+          </div>
+
+          <div class="mt-3 pt-3 border-t border-slate-100 overflow-x-auto">
+            <table class="w-full text-[11px] text-left">
+              <thead id="weeklySourcesHead"></thead>
+              <tbody id="weeklySourcesBody" class="divide-y divide-slate-50 text-slate-700"></tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -457,30 +471,69 @@
         return state.fixedCosts.reduce((acc, f) => acc + (Number(f.amount) || 0), 0);
       }
 
+      function getWeeksOfMonth(monthStr) {
+        const parts = (monthStr || currentMonthStr).split('-');
+        const y = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10) - 1;
+        const firstDay = new Date(y, m, 1);
+        const lastDay = new Date(y, m + 1, 0);
+
+        const dow = firstDay.getDay() === 0 ? 7 : firstDay.getDay();
+        const curMon = new Date(firstDay);
+        curMon.setDate(firstDay.getDate() - (dow - 1));
+
+        const weeks = [];
+        let idx = 1;
+        while (curMon <= lastDay) {
+          const curSun = new Date(curMon);
+          curSun.setDate(curMon.getDate() + 6);
+          const toISO = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+          const toBR = d => String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0');
+          weeks.push({
+            label: 'S' + idx,
+            range: toBR(curMon) + '–' + toBR(curSun),
+            start: toISO(curMon),
+            end: toISO(curSun)
+          });
+          curMon.setDate(curMon.getDate() + 7);
+          idx++;
+        }
+        return weeks;
+      }
+
+      function syncWeekFilterOptions(preserveSelection) {
+        const m = document.getElementById('monthFilter').value || currentMonthStr;
+        const weeks = getWeeksOfMonth(m);
+        const sel = document.getElementById('weekFilter');
+        const prev = preserveSelection ? sel.value : null;
+
+        sel.innerHTML = '<option value="all">Mês todo</option>';
+        let todayWeekIdx = 'all';
+        weeks.forEach((w, i) => {
+          const opt = document.createElement('option');
+          opt.value = String(i);
+          opt.textContent = 'Sem ' + (i + 1) + ' (' + w.range + ')';
+          sel.appendChild(opt);
+          if (todayStr >= w.start && todayStr <= w.end) todayWeekIdx = String(i);
+        });
+
+        if (prev !== null && (prev === 'all' || Number(prev) < weeks.length)) {
+          sel.value = prev;
+        } else {
+          sel.value = todayWeekIdx;
+        }
+      }
+
       function renderKPIs(monthTxs) {
+        const m = document.getElementById('monthFilter').value || currentMonthStr;
+        const weeks = getWeeksOfMonth(m);
+        const weekSel = document.getElementById('weekFilter').value;
         let income = 0, varExpense = 0, incCount = 0, expCount = 0;
-        let uber = 0, n99 = 0, gorjeta = 0, ingressos = 0, comissoesMonth = 0;
-        const weekTotals = [0, 0, 0, 0];
 
         monthTxs.forEach(t => {
           const val = Number(t.amount) || 0;
-          if (t.type === 'income') {
-            income += val;
-            incCount++;
-            if (t.category === 'Uber') uber += val;
-            else if (t.category === '99') n99 += val;
-            else if (t.category === 'Gorjeta') gorjeta += val;
-            else if (t.category === 'Venda de Ingressos') ingressos += val;
-            else if (t.category === 'Comissões') {
-              comissoesMonth += val;
-              const day = parseInt((t.date || '').slice(8, 10), 10) || 1;
-              const wIdx = Math.min(3, Math.floor((day - 1) / 7));
-              weekTotals[wIdx] += val;
-            }
-          } else {
-            varExpense += val;
-            expCount++;
-          }
+          if (t.type === 'income') { income += val; incCount++; }
+          else { varExpense += val; expCount++; }
         });
 
         const fixedTotal = getFixedTotal();
@@ -496,34 +549,63 @@
         document.getElementById('kpiExpense').textContent = formatBRL(totalExpense);
         document.getElementById('kpiExpenseCount').textContent = expCount + ' variáveis + ' + state.fixedCosts.length + ' fixos';
 
-        document.getElementById('srcUber').textContent = formatBRL(uber);
-        document.getElementById('src99').textContent = formatBRL(n99);
-        document.getElementById('srcGorjeta').textContent = formatBRL(gorjeta);
-        document.getElementById('srcIngressos').textContent = formatBRL(ingressos);
-        document.getElementById('srcComissoesMonth').textContent = formatBRL(comissoesMonth);
-
-        const now = new Date();
-        const dayOfWeek = now.getDay() === 0 ? 7 : now.getDay();
-        const monday = new Date(now);
-        monday.setDate(now.getDate() - (dayOfWeek - 1));
-        const mondayStr = monday.toISOString().slice(0, 10);
-        const sunday = new Date(monday);
-        sunday.setDate(monday.getDate() + 6);
-        const sundayStr = sunday.toISOString().slice(0, 10);
-
-        const comissoesWeek = state.transactions
-          .filter(t => t.type === 'income' && t.category === 'Comissões' && t.date >= mondayStr && t.date <= sundayStr)
-          .reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
-        document.getElementById('srcComissoesWeek').textContent = formatBRL(comissoesWeek);
-
-        const weeksEl = document.getElementById('comissoesWeeksRow');
-        weeksEl.innerHTML = '';
-        ['Sem 1', 'Sem 2', 'Sem 3', 'Sem 4+'].forEach((label, idx) => {
-          const box = document.createElement('div');
-          box.className = 'bg-white/80 rounded-lg px-2 py-1 border border-emerald-100';
-          box.innerHTML = '<span class="block text-slate-500">' + label + '</span><span class="font-semibold text-slate-800">' + formatBRL(weekTotals[idx]) + '</span>';
-          weeksEl.appendChild(box);
+        const cats = ['Uber', '99', 'Gorjeta', 'Venda de Ingressos', 'Comissões'];
+        const sources = {};
+        const monthTotals = {};
+        cats.forEach(c => {
+          sources[c] = weeks.map(w =>
+            state.transactions
+              .filter(t => t.type === 'income' && t.category === c && t.date >= w.start && t.date <= w.end)
+              .reduce((acc, t) => acc + (Number(t.amount) || 0), 0)
+          );
+          monthTotals[c] = monthTxs
+            .filter(t => t.type === 'income' && t.category === c)
+            .reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
         });
+
+        function valForSel(cat) {
+          return weekSel === 'all' ? monthTotals[cat] : (sources[cat][Number(weekSel)] || 0);
+        }
+
+        document.getElementById('srcUber').textContent = formatBRL(valForSel('Uber'));
+        document.getElementById('srcUberMonth').textContent = 'Mês: ' + formatBRL(monthTotals['Uber']);
+
+        document.getElementById('src99').textContent = formatBRL(valForSel('99'));
+        document.getElementById('src99Month').textContent = 'Mês: ' + formatBRL(monthTotals['99']);
+
+        document.getElementById('srcGorjeta').textContent = formatBRL(valForSel('Gorjeta'));
+        document.getElementById('srcGorjetaMonth').textContent = 'Mês: ' + formatBRL(monthTotals['Gorjeta']);
+
+        document.getElementById('srcIngressos').textContent = formatBRL(valForSel('Venda de Ingressos'));
+        document.getElementById('srcIngressosMonth').textContent = 'Mês: ' + formatBRL(monthTotals['Venda de Ingressos']);
+
+        document.getElementById('srcComissoesWeek').textContent = formatBRL(valForSel('Comissões'));
+        document.getElementById('srcComissoesMonth').textContent = formatBRL(monthTotals['Comissões']);
+
+        const thead = document.getElementById('weeklySourcesHead');
+        thead.innerHTML = '<tr class="text-slate-500 border-b border-slate-100"><th class="py-1 pr-2 font-medium">Fonte</th>' +
+          weeks.map(w => `<th class="py-1 px-1 text-right font-medium whitespace-nowrap">${w.label}<span class="block text-[9px] font-normal text-slate-400">${w.range}</span></th>`).join('') +
+          '</tr>';
+
+        const tbody = document.getElementById('weeklySourcesBody');
+        tbody.innerHTML = '';
+        const shortNames = { 'Uber': 'Uber', '99': '99', 'Gorjeta': 'Gorjeta', 'Venda de Ingressos': 'Ingressos', 'Comissões': 'Comissões' };
+        const weekTotals = weeks.map(() => 0);
+
+        cats.forEach(cat => {
+          const arr = sources[cat];
+          arr.forEach((v, i) => { weekTotals[i] += v; });
+          const tr = document.createElement('tr');
+          tr.innerHTML = `<td class="py-1.5 pr-2 font-medium text-slate-800">${shortNames[cat]}</td>` +
+            arr.map(v => `<td class="py-1.5 px-1 text-right whitespace-nowrap">${formatBRL(v)}</td>`).join('');
+          tbody.appendChild(tr);
+        });
+
+        const totalTr = document.createElement('tr');
+        totalTr.className = 'font-bold text-slate-900 border-t border-slate-200 bg-slate-50/70';
+        totalTr.innerHTML = '<td class="py-1.5 pr-2">Total</td>' +
+          weekTotals.map(v => `<td class="py-1.5 px-1 text-right whitespace-nowrap">${formatBRL(v)}</td>`).join('');
+        tbody.appendChild(totalTr);
 
         const budget = Number(state.budget) || 1;
         const pct = Math.round((totalExpense / budget) * 100);
@@ -785,7 +867,8 @@
         }
       });
 
-      document.getElementById('monthFilter').addEventListener('change', renderAll);
+      document.getElementById('monthFilter').addEventListener('change', () => { syncWeekFilterOptions(false); renderAll(); });
+      document.getElementById('weekFilter').addEventListener('change', renderAll);
       document.getElementById('searchInput').addEventListener('input', renderAll);
       document.getElementById('typeFilter').addEventListener('change', renderAll);
       document.getElementById('dayFilter').addEventListener('change', renderAll);
@@ -945,6 +1028,7 @@
 
       // Init
       document.getElementById('monthFilter').value = currentMonthStr;
+      syncWeekFilterOptions(false);
       loadState();
       resetForm();
       renderAll();
